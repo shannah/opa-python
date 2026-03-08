@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: opa-archive
+Version: 0.1.0
+Summary: Python library for generating OPA (Open Prompt Archive) files
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/shannah/opa-python
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.8
