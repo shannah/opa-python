@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Generate an OPA archive that asks an AI agent to summarise headline news
-in pirate-speak and pick the article most relevant to AI enthusiasts.
+"""Generate a **signed** OPA archive that asks an AI agent to summarise
+headline news in pirate-speak and pick the article most relevant to AI
+enthusiasts.
 
 The archive bundles:
   - A prompt (prompt.md)
   - The Google News RSS feed (data/headlines.xml)
+  - A JAR-style digital signature (META-INF/SIGNATURE.{SF,RSA})
 
 Usage:
     python generate_pirate_news.py          # creates pirate_news.opa
@@ -18,7 +20,16 @@ import textwrap
 # Ensure the library is importable from the repo root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from opa import OpaArchive, Manifest, Prompt, DataIndex, ExecutionMode
+from opa import (
+    OpaArchive,
+    Manifest,
+    Prompt,
+    DataIndex,
+    ExecutionMode,
+    Signer,
+    generate_signing_key,
+    generate_self_signed_cert,
+)
 
 FEED_URL = "https://news.google.com/rss"
 FEED_FILE = os.path.join(os.path.dirname(__file__), "headlines.xml")
@@ -112,6 +123,17 @@ def main() -> None:
     out_path = os.path.join(os.path.dirname(__file__), "pirate_news.opa")
     archive.write(out_path)
     print(f"Created {out_path}")
+
+    # --- Sign the archive ---
+    print("Generating RSA signing key and self-signed certificate ...")
+    private_key = generate_signing_key(key_type="rsa", key_size=2048)
+    certificate = generate_self_signed_cert(
+        private_key, common_name="Pirate News Signer"
+    )
+
+    signer = Signer(private_key=private_key, certificate=certificate)
+    signer.sign(out_path)
+    print("Archive signed successfully.")
 
     # Quick sanity check
     import zipfile
