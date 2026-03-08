@@ -6,16 +6,28 @@ build-backend = "setuptools.build_meta"
 name = "opa-archive"
 version = "0.1.0"
 description = "Python library for generating OPA (Open Prompt Archive) files"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
+authors = [
+    { name = "Steve Hannah", email = "steve@weblite.ca" },
+]
+keywords = ["opa", "open-prompt-archive", "ai", "prompt", "archive", "signing"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Libraries",
 ]
 
 [project.urls]
 Homepage = "https://github.com/shannah/opa-python"
+Repository = "https://github.com/shannah/opa-python"
+Issues = "https://github.com/shannah/opa-python/issues"
+
+[project.optional-dependencies]
+crypto = ["cryptography>=3.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
