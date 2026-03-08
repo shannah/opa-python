@@ -252,8 +252,9 @@ def _sign_sf_crypto(sf_bytes: bytes, private_key, cert) -> bytes:
 def _sign_sf_openssl(sf_bytes: bytes, bundle: "_PemBundle") -> bytes:
     """Create a DER-encoded PKCS#7 signature using the ``openssl`` CLI.
 
-    Uses ``openssl smime`` (works on both OpenSSL and LibreSSL/macOS).
-    Falls back to ``openssl cms`` if ``smime`` fails.
+    Tries multiple command variations to support both OpenSSL and
+    LibreSSL (macOS).  LibreSSL's ``smime`` doesn't support ``-md`` and
+    doesn't have ``cms`` at all.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         sf_path = os.path.join(tmpdir, "signature.sf")
@@ -268,42 +269,52 @@ def _sign_sf_openssl(sf_bytes: bytes, bundle: "_PemBundle") -> bytes:
         with open(cert_path, "wb") as f:
             f.write(bundle.cert_pem)
 
-        # Try smime first (works on LibreSSL/macOS and OpenSSL)
+        # Multiple command variations for compatibility:
+        #  1. smime with -md sha256 (OpenSSL 1.x/3.x)
+        #  2. smime without -md (LibreSSL — defaults to sha256 on modern versions)
+        #  3. cms with -md sha256 (OpenSSL only, not on LibreSSL)
+        smime_base = [
+            "openssl", "smime", "-sign",
+            "-binary", "-nodetach",
+            "-in", sf_path,
+            "-signer", cert_path,
+            "-inkey", key_path,
+            "-outform", "DER",
+            "-out", out_path,
+        ]
+        cms_base = [
+            "openssl", "cms", "-sign",
+            "-binary",
+            "-in", sf_path,
+            "-signer", cert_path,
+            "-inkey", key_path,
+            "-outform", "DER",
+            "-out", out_path,
+        ]
         cmds = [
-            [
-                "openssl", "smime", "-sign",
-                "-binary", "-nodetach",
-                "-in", sf_path,
-                "-signer", cert_path,
-                "-inkey", key_path,
-                "-outform", "DER",
-                "-out", out_path,
-                "-md", "sha256",
-            ],
-            [
-                "openssl", "cms", "-sign",
-                "-binary",
-                "-in", sf_path,
-                "-signer", cert_path,
-                "-inkey", key_path,
-                "-outform", "DER",
-                "-out", out_path,
-                "-md", "sha256",
-            ],
+            smime_base + ["-md", "sha256"],
+            smime_base,
+            cms_base + ["-md", "sha256"],
         ]
 
-        last_err = None
+        errors: List[str] = []
         for cmd in cmds:
             try:
-                subprocess.check_call(cmd, stderr=subprocess.DEVNULL)
+                result = subprocess.run(
+                    cmd, capture_output=True, check=True,
+                )
                 with open(out_path, "rb") as f:
                     return f.read()
             except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-                last_err = exc
+                stderr = ""
+                if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
+                    stderr = exc.stderr.decode("utf-8", errors="replace").strip()
+                errors.append(f"{' '.join(cmd[-4:])}: {stderr or exc}")
                 continue
 
         raise RuntimeError(
-            f"openssl signing failed (tried smime and cms): {last_err}"
+            "openssl signing failed. Tried smime and cms.\n"
+            + "\n".join(f"  - {e}" for e in errors)
         )
 
 
