@@ -348,10 +348,21 @@ class Signer:
     """
 
     def __init__(self, *, private_key, certificate):
-        self._key = private_key
-        self._cert = certificate
         self._ext = _block_file_extension(private_key)
         self._use_openssl = isinstance(private_key, _PemBundle)
+
+        # When using the openssl backend, generate_self_signed_cert() returns
+        # a _PemBundle that already contains both key and cert PEM.  The
+        # original private_key bundle may have an empty cert_pem.  Merge them
+        # so that _sign_sf_openssl always has both.
+        if self._use_openssl and isinstance(certificate, _PemBundle):
+            key_pem = private_key.key_pem or certificate.key_pem
+            cert_pem = certificate.cert_pem or private_key.cert_pem
+            self._key = _PemBundle(key_pem, cert_pem, key_type=private_key.key_type)
+            self._cert = certificate
+        else:
+            self._key = private_key
+            self._cert = certificate
 
     def _make_block(self, sf_bytes: bytes) -> bytes:
         if self._use_openssl:
